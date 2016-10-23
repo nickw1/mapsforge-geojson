@@ -126,13 +126,17 @@ public class GeoJSONDataSource extends MapDataStore {
     // always get new tile for now
     // again for a GeoJSONDataSource this isn't really relevant as the
     // datasource time will never be more recent than the rendered tile
+    // we could record the last download time but this would only be for
+    // a specific tile - don't really want to keep a record of all download
+    // times of all tiles
     public long getDataTimestamp(Tile tile) {
         return System.currentTimeMillis();
     }
     
     private void extendBoundingBox(Tile tile) {
         BoundingBox box = tile.getBoundingBox();
-        boundingBox = (boundingBox==null) ? box: boundingBox.extendBoundingBox(box);
+        boundingBox = (boundingBox==null) ? 
+            box: boundingBox.extendBoundingBox(box);
     }
 }
 

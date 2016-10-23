@@ -32,6 +32,20 @@ public class DownloadCache {
         return new File(getFilename(tile)).exists();
     }
 
+	public boolean clear() {
+		return recursiveDelete(dir, true);
+	}
+
+	private static boolean recursiveDelete(File f, boolean top)  {
+		boolean status=true;
+		if(f.isDirectory()) {
+			for (File curFile: f.listFiles()) {
+				status &= recursiveDelete(curFile, false);
+			}
+		} 
+		return top==true ? status : status & f.delete();
+	}
+
     private String getFilename(Tile tile) {
         return dir.getAbsolutePath() + "/" + tile.zoomLevel 
                 + "/" + tile.tileX + "/" + tile.tileY + ".json";
