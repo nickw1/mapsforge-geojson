@@ -31,6 +31,14 @@ public class GeoJSONReader {
                     k.equals("landuse") && v.equals("forest") ||
                     k.equals("natural") && v.equals("heath");
         }
+
+        public static boolean isLand(String k, String v) {
+            return k.equals("natural") && v.equals("nosea");
+        }
+
+        public static boolean isSea(String k, String v) {
+            return k.equals("natural") && v.equals("sea");
+        }
     }    
 
     public GeoJSONReader() {
@@ -38,12 +46,12 @@ public class GeoJSONReader {
 
     public MapReadResult read(InputStream is, DownloadCache cache,
                                 Tile tile) throws IOException, JSONException {
-		/*
+        /*
         PoiWayBundle bundle = new PoiWayBundle
             (new ArrayList<PointOfInterest>(),
             new ArrayList<Way>());
-		*/
-		MapReadResult result = new MapReadResult();
+        */
+        MapReadResult result = new MapReadResult();
         String jsonString = readFromStream(is);
         System.out.println("GeoJSONReader.read(): json="+jsonString);
         if(cache!=null) {
@@ -58,7 +66,7 @@ public class GeoJSONReader {
         for    (int i=0; i<features.length(); i++) {
             JSONObject currentFeature = features.getJSONObject(i);
             String type = currentFeature.getString("type");
-            layer=(byte)4; // default for roads, paths etc
+            layer=(byte)6; // default for roads, paths etc
             if(type.equals("Feature")) {
                 JSONObject geometry = currentFeature.getJSONObject("geometry"),
                     properties = currentFeature.getJSONObject("properties");
@@ -67,11 +75,17 @@ public class GeoJSONReader {
                 while(it.hasNext()) {
                     String k = (String)it.next(), v=properties.getString(k);
                     if(k.equals("contour")) {
-                        layer=(byte)2; // contours under roads/paths
+                        layer = (byte)4; // contours under roads/paths
+                    } else if (k.equals("power")) {
+                        layer = (byte)7; // power lines above everything else 
                     } else if (FeatureTests.isLandscapeFeature(k,v)) {
-                        layer = (byte)1; // woods etc below contours
+                        layer = (byte)3; // woods etc below contours
                     } else if (FeatureTests.isWaterFeature(k,v)) {
-                        layer = (byte)3; // lakes above contours, below roads
+                        layer = (byte)5; // lakes above contours, below roads
+                    } else if (FeatureTests.isLand(k,v)) {
+                        layer = (byte)2; // land below everything else 
+                    } else if (FeatureTests.isSea(k,v)) {
+                        layer = (byte)1; // land below everything else 
                     }
                     tags.add(new Tag(k,v));                
                 }
@@ -82,7 +96,7 @@ public class GeoJSONReader {
                     LatLong ll = new LatLong
                         ( coords.getDouble(1), coords.getDouble(0) );
                     PointOfInterest poi = new PointOfInterest
-                        ((byte)5, tags, ll); // pois above all else
+                        ((byte)6, tags, ll); // pois above all else
                     result.pointOfInterests.add(poi);
                 } else if (gType.equals("LineString")) {
                     LatLong[][] points = readWayFeature(coords);
