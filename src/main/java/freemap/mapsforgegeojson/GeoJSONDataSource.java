@@ -1,4 +1,4 @@
-package freemap.mapsforgeplus;
+package freemap.mapsforgegeojson;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -41,53 +41,57 @@ public class GeoJSONDataSource extends MapDataStore {
     // Query the Freemap server for the appropriate GeoJSON tile by x,y,z
     // request all highways and all POIs for now
     public MapReadResult readMapData(Tile tile) {
+        return doReadMapData (tile, false);
+    }
+
+    public MapReadResult readPoiData(Tile tile) {
+        return doReadMapData (tile, true);
+    }
+
+    private MapReadResult doReadMapData (Tile tile, boolean poisOnly) {
       InputStream in;
       HttpURLConnection conn=null;
       lastRequestedZoomLevel = tile.zoomLevel;
       try {
           if(cache!=null && cache.inCache(tile)) {
-            System.out.println("In cache: " + 
-                tile.tileX+","+tile.tileY+","+tile.zoomLevel);
-            in  = cache.getInputStream(tile);
-            // Pass in null as the used cache so that the reader doesn't
-            // try to cache the tile as it's already there!
-            MapReadResult result = doReadJSON(in, tile, null);
-            if(result!=null)
-                extendBoundingBox(tile);
-            return result;
-            } else {    
-                URL url = new URL (server + "?x="+
+              in  = cache.getInputStream(tile);
+              // Pass in null as the used cache so that the reader doesn't
+              // try to cache the tile as it's already there!
+              MapReadResult result = doReadJSON(in, tile, null, poisOnly);
+              if(result!=null) {
+                  extendBoundingBox(tile);
+              }
+              return result;
+           } else {    
+               URL url = new URL (server + "?x="+
                     tile.tileX+"&y="+tile.tileY+"&z="+tile.zoomLevel+
                     (queryString==null ? "":"&"+queryString));
-                System.out.println("Tile details: " + 
-                    tile.tileX+","+tile.tileY+","+tile.zoomLevel);
-                conn = (HttpURLConnection)url.openConnection();
-                in = conn.getInputStream();
-                if(conn.getResponseCode()==200) {
-                    MapReadResult result = doReadJSON(in, tile, cache);
-                    if(result!=null)
-                        extendBoundingBox(tile);
-                    return result;
-                }
-            }
+               conn = (HttpURLConnection)url.openConnection();
+               in = conn.getInputStream();
+               if(conn.getResponseCode()==200) {
+                   MapReadResult result=doReadJSON(in, tile, cache, poisOnly);
+                   if(result!=null) {
+                       extendBoundingBox(tile);
+                   }
+                   return result;
+		       }
+	       }
        } catch(Exception e) {
                e.printStackTrace();
        }
-        return null;
+       return null;
     }
 
     private MapReadResult doReadJSON
-            (InputStream in, Tile tile, DownloadCache usedCache) 
-                    throws IOException {
-            System.out.println("doReadJSON(): InputStream=" + in + 
-            " cache="+usedCache);
-            GeoJSONReader reader = new GeoJSONReader();
+            (InputStream in, Tile tile, DownloadCache usedCache,     
+                boolean poisOnly) throws IOException {
+        GeoJSONReader reader = new GeoJSONReader(poisOnly);
 
-            MapReadResult result=reader.read(in, usedCache, tile);
-            if(result!=null) {
-                startZoomLevel = tile.zoomLevel;
-            }
-            return result;
+        MapReadResult result=reader.read(in, usedCache, tile);
+        if(result!=null) {
+            startZoomLevel = tile.zoomLevel;
+        }
+        return result;
     }
 
     // NW changed to fit interface

@@ -1,7 +1,7 @@
 // GeoJSONReader
 // reads some GeoJSON into a PoiWayBundle 
 
-package freemap.mapsforgeplus; 
+package freemap.mapsforgegeojson;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -19,6 +19,8 @@ import org.json.JSONArray;
 import org.json.JSONException;
 
 public class GeoJSONReader {
+
+	private boolean poisOnly;
 
     static class FeatureTests {
         public static boolean isWaterFeature(String k, String v) {
@@ -42,7 +44,12 @@ public class GeoJSONReader {
     }    
 
     public GeoJSONReader() {
+		this(false);
     }
+
+	public GeoJSONReader(boolean poisOnly) {
+		this.poisOnly = poisOnly;
+	}
 
     public MapReadResult read(InputStream is, DownloadCache cache,
                                 Tile tile) throws IOException, JSONException {
@@ -53,71 +60,71 @@ public class GeoJSONReader {
         */
         MapReadResult result = new MapReadResult();
         String jsonString = readFromStream(is);
-        System.out.println("GeoJSONReader.read(): json="+jsonString);
         if(cache!=null) {
-            System.out.println("Writing to cache");
             cache.write(tile, jsonString);
         }
 
         JSONObject data = new JSONObject(jsonString);
         JSONArray features = data.getJSONArray("features");
-        System.out.println("Read " + features.length()+" features from JSON.");
         byte layer;
-        for    (int i=0; i<features.length(); i++) {
+        for (int i=0; i<features.length(); i++) {
             JSONObject currentFeature = features.getJSONObject(i);
             String type = currentFeature.getString("type");
             layer=(byte)6; // default for roads, paths etc
             if(type.equals("Feature")) {
                 JSONObject geometry = currentFeature.getJSONObject("geometry"),
                     properties = currentFeature.getJSONObject("properties");
-                ArrayList<Tag> tags = new ArrayList<Tag>();    
-                Iterator it = properties.keys();
-                while(it.hasNext()) {
-                    String k = (String)it.next(), v=properties.getString(k);
-                    if(k.equals("contour")) {
-                        layer = (byte)4; // contours under roads/paths
-                    } else if (k.equals("power")) {
-                        layer = (byte)7; // power lines above everything else 
-                    } else if (FeatureTests.isLandscapeFeature(k,v)) {
-                        layer = (byte)3; // woods etc below contours
-                    } else if (FeatureTests.isWaterFeature(k,v)) {
-                        layer = (byte)5; // lakes above contours, below roads
-                    } else if (FeatureTests.isLand(k,v)) {
-                        layer = (byte)2; // land below everything else 
-                    } else if (FeatureTests.isSea(k,v)) {
-                        layer = (byte)1; // land below everything else 
-                    }
-                    tags.add(new Tag(k,v));                
-                }
-
                 String gType = geometry.getString("type");
-                JSONArray coords = geometry.getJSONArray("coordinates");
-                if(gType.equals("Point")) {
-                    LatLong ll = new LatLong
-                        ( coords.getDouble(1), coords.getDouble(0) );
-                    PointOfInterest poi = new PointOfInterest
-                        ((byte)6, tags, ll); // pois above all else
-                    result.pointOfInterests.add(poi);
-                } else if (gType.equals("LineString")) {
-                    LatLong[][] points = readWayFeature(coords);
-                    Way way = new Way(layer, tags, points, null);
-                    result.ways.add(way);
-                } else if (gType.equals("MultiLineString")) {
-                    LatLong[][] points = readMultiWayFeature(coords);
-                    Way way = new Way(layer, tags, points, null);
-                    result.ways.add(way);
-                } else if (gType.equals("Polygon")) {
-                    // polygons are 3-deep in geojson but only actually 
-                    // contain one line so we simplify them
-                    LatLong[][] points = readWayFeature(coords.getJSONArray(0));
-                    Way way = new Way(layer, tags, points, null);
-                    result.ways.add(way);
-                } else if (gType.equals("MultiPolygon")) {
-                    LatLong[][] points=readMultiWayFeature
-                        (coords.getJSONArray(0));
-                    Way way = new Way(layer, tags, points, null);
-                    result.ways.add(way);
-                } 
+				if(!poisOnly || gType.equals("Point")) {
+                	ArrayList<Tag> tags = new ArrayList<Tag>();    
+                	Iterator it = properties.keys();
+                	while(it.hasNext()) {
+                    	String k = (String)it.next(), v=properties.getString(k);
+                    	if(k.equals("contour")) {
+                        	layer = (byte)4; // contours under roads/paths
+                    	} else if (k.equals("power")) {
+                        	layer = (byte)7; // power lines above all else 
+                    	} else if (FeatureTests.isLandscapeFeature(k,v)) {
+                        	layer = (byte)3; // woods etc below contours
+                    	} else if (FeatureTests.isWaterFeature(k,v)) {
+                        	layer = (byte)5; // lakes above contours, below rds
+                    	} else if (FeatureTests.isLand(k,v)) {
+                        	layer = (byte)2; // land below everything else 
+                    	} else if (FeatureTests.isSea(k,v)) {
+                        	layer = (byte)1; // land below everything else 
+                    	}
+                    	tags.add(new Tag(k,v));                
+                	}
+
+                	JSONArray coords = geometry.getJSONArray("coordinates");
+                	if(gType.equals("Point")) {
+                    	LatLong ll = new LatLong
+                        	( coords.getDouble(1), coords.getDouble(0) );
+                    	PointOfInterest poi = new PointOfInterest
+                        	((byte)6, tags, ll); // pois above all else
+                    	result.pointOfInterests.add(poi);
+                	} else if (gType.equals("LineString")) {
+                    	LatLong[][] points = readWayFeature(coords);
+                    	Way way = new Way(layer, tags, points, null);
+                    	result.ways.add(way);
+                	} else if (gType.equals("MultiLineString")) {
+                    	LatLong[][] points = readMultiWayFeature(coords);
+                    	Way way = new Way(layer, tags, points, null);
+                    	result.ways.add(way);
+                	} else if (gType.equals("Polygon")) {
+                    	// polygons are 3-deep in geojson but only actually 
+                    	// contain one line so we simplify them
+                    	LatLong[][] points = readWayFeature
+							(coords.getJSONArray(0));
+                    	Way way = new Way(layer, tags, points, null);
+                    	result.ways.add(way);
+                	} else if (gType.equals("MultiPolygon")) {
+                    	LatLong[][] points=readMultiWayFeature
+                        	(coords.getJSONArray(0));
+                    	Way way = new Way(layer, tags, points, null);
+                    	result.ways.add(way);
+                	} 
+				}
             }
         }
         return result;

@@ -1,4 +1,4 @@
-package freemap.mapsforgeplus; 
+package freemap.mapsforgegeojson;
 
 import java.io.File;
 import java.io.IOException;
