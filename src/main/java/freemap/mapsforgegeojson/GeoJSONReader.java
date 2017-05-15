@@ -60,13 +60,13 @@ public class GeoJSONReader {
         */
         MapReadResult result = new MapReadResult();
         String jsonString = readFromStream(is);
-        if(cache!=null) {
-            cache.write(tile, jsonString);
-        }
 
         JSONObject data = new JSONObject(jsonString);
         JSONArray features = data.getJSONArray("features");
         byte layer;
+        if(cache!=null && features.length() > 0) {
+            cache.write(tile, jsonString);
+        }
         for (int i=0; i<features.length(); i++) {
             JSONObject currentFeature = features.getJSONObject(i);
             String type = currentFeature.getString("type");
