@@ -53,7 +53,7 @@ public class GeoJSONDataSource extends MapDataStore {
       HttpURLConnection conn=null;
       lastRequestedZoomLevel = tile.zoomLevel;
       try {
-          if(cache!=null && cache.inCache(tile)) {
+          if(poisOnly==false && cache!=null && cache.inCache(tile)) {
               in  = cache.getInputStream(tile);
               // Pass in null as the used cache so that the reader doesn't
               // try to cache the tile as it's already there!
@@ -87,7 +87,7 @@ public class GeoJSONDataSource extends MapDataStore {
                 boolean poisOnly) throws IOException {
         GeoJSONReader reader = new GeoJSONReader(poisOnly);
 
-        MapReadResult result=reader.read(in, usedCache, tile);
+        MapReadResult result=reader.read(in, poisOnly ? null : usedCache, tile);
         if(result!=null) {
             startZoomLevel = tile.zoomLevel;
         }
