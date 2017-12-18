@@ -20,6 +20,8 @@ public class GeoJSONDataSource extends MapDataStore {
     BoundingBox boundingBox; // bounding box of all data so far
     Byte lastRequestedZoomLevel;
 
+    boolean isClosed = false;
+
     // queryString = any compulsory query string data needed by the server
     String server, queryString;
 
@@ -41,56 +43,61 @@ public class GeoJSONDataSource extends MapDataStore {
     // Query the Freemap server for the appropriate GeoJSON tile by x,y,z
     // request all highways and all POIs for now
     public MapReadResult readMapData(Tile tile) {
-        return doReadMapData (tile, false);
+        return isClosed ? null: doReadMapData (tile, false);
     }
 
     public MapReadResult readPoiData(Tile tile) {
-        return doReadMapData (tile, true);
+        return isClosed ? null: doReadMapData (tile, true);
     }
 
     private MapReadResult doReadMapData (Tile tile, boolean poisOnly) {
-      InputStream in;
-      HttpURLConnection conn=null;
-      lastRequestedZoomLevel = tile.zoomLevel;
-      try {
-          if(poisOnly==false && cache!=null && cache.inCache(tile)) {
-              in  = cache.getInputStream(tile);
-              // Pass in null as the used cache so that the reader doesn't
-              // try to cache the tile as it's already there!
-              MapReadResult result = doReadJSON(in, tile, null, poisOnly);
-              if(result!=null) {
-                  extendBoundingBox(tile);
-              }
-              return result;
-           } else {    
-               URL url = new URL (server + "?x="+
-                    tile.tileX+"&y="+tile.tileY+"&z="+tile.zoomLevel+
-                    (queryString==null ? "":"&"+queryString));
-               conn = (HttpURLConnection)url.openConnection();
-               in = conn.getInputStream();
-               if(conn.getResponseCode()==200) {
-                   MapReadResult result=doReadJSON(in, tile, cache, poisOnly);
-                   if(result!=null) {
-                       extendBoundingBox(tile);
+          MapReadResult result = null;
+          if(!isClosed) {
+              InputStream in;
+              HttpURLConnection conn=null;
+              lastRequestedZoomLevel = tile.zoomLevel;
+              try {
+                  if(poisOnly==false && cache!=null && cache.inCache(tile)) {
+                      in  = cache.getInputStream(tile);
+                      // Pass in null as the used cache so that the reader doesn't
+                      // try to cache the tile as it's already there!
+                      result = doReadJSON(in, tile, null, poisOnly);
+                      if(result!=null) {
+                          extendBoundingBox(tile);
+                      }
+                  } else {    
+                    URL url = new URL (server + "?x="+
+                            tile.tileX+"&y="+tile.tileY+"&z="+tile.zoomLevel+
+                            (queryString==null ? "":"&"+queryString));
+                       conn = (HttpURLConnection)url.openConnection();
+                       in = conn.getInputStream();
+                       if(conn.getResponseCode()==200) {
+                           result=doReadJSON(in, tile, cache, poisOnly);
+                           if(result!=null) {
+                               extendBoundingBox(tile);
+                           }
+                       }
                    }
-                   return result;
-		       }
-	       }
-       } catch(Exception e) {
-               e.printStackTrace();
-       }
-       return null;
-    }
+             } catch(Exception e) {
+                   e.printStackTrace();
+             }
+         } 
+         return result;
+     }
 
     private MapReadResult doReadJSON
             (InputStream in, Tile tile, DownloadCache usedCache,     
                 boolean poisOnly) throws IOException {
-        GeoJSONReader reader = new GeoJSONReader(poisOnly);
+		MapReadResult result = null;
+		if(!isClosed) {
+        	GeoJSONReader reader = new GeoJSONReader(poisOnly);
 
-        MapReadResult result=reader.read(in, poisOnly ? null : usedCache, tile);
-        if(result!=null) {
-            startZoomLevel = tile.zoomLevel;
-        }
+        	result=reader.read
+				(in, poisOnly ? null : usedCache, tile);
+        	if(result!=null) {
+            	startZoomLevel = tile.zoomLevel;
+        	}
+		}
         return result;
     }
 
@@ -117,8 +124,12 @@ public class GeoJSONDataSource extends MapDataStore {
 
     // NW in interface. We can't really "close" this as the web connection
     // is closed after we have read the geojson
+
+    // 181217 close() will set a boolean so we don't try and read data once
+    // the connection is closed (this takes place as part of rendering 
+    // thread so we need to do this)
     public void close() {
-        // do nothing
+        isClosed = true;
     }
 
     // always return true as this is called before the data is requested
